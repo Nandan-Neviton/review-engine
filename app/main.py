@@ -17,16 +17,26 @@ async def review(request: Request):
     repository = payload["repository"]
     commit_sha = payload["commit_sha"]
 
-    print("TOKEN EXISTS:", bool(os.getenv("GITHUB_TOKEN")))
+    token = os.getenv("GITHUB_TOKEN")
+
+    print("\n========== TOKEN DEBUG ==========")
+    print("TOKEN EXISTS:", bool(token))
+    print("TOKEN LENGTH:", len(token) if token else 0)
+    print("TOKEN PREFIX:", token[:6] if token else "NO TOKEN")
+    print("=================================\n")
 
     github_api_url = f"https://api.github.com/repos/{repository}/commits/{commit_sha}"
 
     headers = {
-        "Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}",
+        "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json"
     }
 
     response = requests.get(github_api_url, headers=headers)
+
+    print("\n========== GITHUB API STATUS ==========")
+    print("STATUS CODE:", response.status_code)
+    print("=======================================\n")
 
     commit_data = response.json()
 
@@ -50,8 +60,8 @@ async def review(request: Request):
         "files_changed": files_changed
     }
 
-    print("\n===== REVIEW OUTPUT =====")
+    print("\n========== REVIEW OUTPUT ==========")
     print(review_output)
-    print("=========================\n")
+    print("===================================\n")
 
     return review_output
