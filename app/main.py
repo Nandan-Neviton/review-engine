@@ -4,7 +4,6 @@ import os
 
 app = FastAPI()
 
-print("TOKEN EXISTS:", bool(os.getenv("GITHUB_TOKEN")))
 
 @app.get("/")
 async def home():
@@ -17,6 +16,8 @@ async def review(request: Request):
 
     repository = payload["repository"]
     commit_sha = payload["commit_sha"]
+
+    print("TOKEN EXISTS:", bool(os.getenv("GITHUB_TOKEN")))
 
     github_api_url = f"https://api.github.com/repos/{repository}/commits/{commit_sha}"
 
