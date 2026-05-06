@@ -18,6 +18,7 @@ async def review(request: Request):
     commit_sha = payload["commit_sha"]
 
     token = os.getenv("GITHUB_TOKEN")
+    print("TEST VALUE:", os.getenv("TEST_VALUE"))
 
     print("\n========== TOKEN DEBUG ==========")
     print("TOKEN EXISTS:", bool(token))
