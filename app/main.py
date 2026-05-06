@@ -1,9 +1,22 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 import requests
 import os
 import json
 
 app = FastAPI()
+
+# Enable CORS for frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Store latest review in memory
+LATEST_REVIEW = {}
 
 
 @app.get("/")
@@ -13,8 +26,15 @@ async def home():
     }
 
 
+@app.get("/latest-review")
+async def latest_review():
+    return LATEST_REVIEW
+
+
 @app.post("/review")
 async def review(request: Request):
+    global LATEST_REVIEW
+
     payload = await request.json()
 
     repository = payload["repository"]
@@ -64,10 +84,14 @@ async def review(request: Request):
         "files_changed": files_changed
     }
 
+    # Save latest review in memory
+    LATEST_REVIEW = review_output
+
     print("\n========== REVIEW OUTPUT ==========")
     print(json.dumps(review_output, indent=2))
     print("===================================\n")
 
+    # Save review locally
     with open("review_output.json", "w") as review_file:
         json.dump(review_output, review_file, indent=2)
 
