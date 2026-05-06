@@ -4,6 +4,7 @@ import os
 
 app = FastAPI()
 
+print("TOKEN EXISTS:", bool(os.getenv("GITHUB_TOKEN")))
 
 @app.get("/")
 async def home():
@@ -41,6 +42,8 @@ async def review(request: Request):
         })
 
     review_output = {
+        "github_status_code": response.status_code,
+        "github_api_response": commit_data,
         "repository": repository,
         "commit_sha": commit_sha,
         "files_changed": files_changed
