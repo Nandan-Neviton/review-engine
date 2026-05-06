@@ -22,6 +22,10 @@ async def review(request: Request):
 
     commit_data = response.json()
 
+    print("\n===== FULL GITHUB RESPONSE =====")
+    print(commit_data)
+    print("================================\n")
+
     files_changed = []
 
     for file in commit_data.get("files", []):
