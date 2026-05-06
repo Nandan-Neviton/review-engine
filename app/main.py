@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 import requests
+import os
 
 app = FastAPI()
 
@@ -18,13 +19,14 @@ async def review(request: Request):
 
     github_api_url = f"https://api.github.com/repos/{repository}/commits/{commit_sha}"
 
-    response = requests.get(github_api_url)
+    headers = {
+        "Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    response = requests.get(github_api_url, headers=headers)
 
     commit_data = response.json()
-
-    print("\n===== FULL GITHUB RESPONSE =====")
-    print(commit_data)
-    print("================================\n")
 
     files_changed = []
 
