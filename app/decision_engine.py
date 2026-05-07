@@ -14,6 +14,8 @@ Design principles:
 
 from typing import Optional
 
+from app.governance_confidence import calculate_governance_confidence
+
 # ---------------------------------------------------------------------------
 # Severe security keywords — triggers BLOCKED regardless of other signals
 # ---------------------------------------------------------------------------
@@ -56,6 +58,8 @@ def make_decision(
     ai_review: dict,
     risk_score_label: str,
     user_story_detected: bool = False,
+    context_loaded: bool = False,
+    files_changed: list = None,
 ) -> dict:
     """
     Derive a balanced governance decision from deterministic findings + AI review.
@@ -76,6 +80,7 @@ def make_decision(
     }
     """
     reasons: list = []
+    files = files_changed or []
 
     # --- Parse AI signals ---
     ai_available = _is_ai_available(ai_review)
@@ -212,13 +217,13 @@ def make_decision(
         reasons.append("Architecture observation noted — alignment verification recommended")
         decision = "NEEDS_REVIEW"
 
-    # --- Governance confidence ---
-    confidence = _calculate_confidence(
-        findings=findings,
+    # --- Governance confidence (analysis quality, not implementation quality) ---
+    confidence = calculate_governance_confidence(
         ai_review=ai_review,
-        ai_available=ai_available,
+        context_loaded=context_loaded,
         user_story_detected=user_story_detected,
-        decision=decision,
+        files_changed=files,
+        findings=findings,
     )
 
     return {
@@ -262,49 +267,3 @@ def _has_severe_ai_security(ai_security: list) -> bool:
         if any(kw in item_lower for kw in _SEVERE_KEYWORDS):
             return True
     return False
-
-
-def _calculate_confidence(
-    findings: list,
-    ai_review: dict,
-    ai_available: bool,
-    user_story_detected: bool,
-    decision: str,
-) -> int:
-    """
-    Compute a 0-100 governance confidence score.
-
-    Higher score = more confident the change is governance-compliant.
-    Components:
-      - AI coverage contribution   (max +30)
-      - Findings penalty           (-8 per HIGH, -3 per MEDIUM)
-      - AI security/arch penalty   (-5 per security item, -3 per arch item)
-      - Clean changeset bonus      (+10)
-      - Decision alignment clamp
-    """
-    score = 60.0  # neutral baseline
-
-    if ai_available:
-        coverage = ai_review.get("coverage_percentage", 0)
-        if user_story_detected:
-            score += coverage * 0.30          # max +30 for 100% coverage
-        security_issues = len(ai_review.get("security_review", []))
-        arch_issues = len(ai_review.get("architecture_review", []))
-        score -= security_issues * 5
-        score -= arch_issues * 3
-
-    high_count = sum(1 for f in findings if f.get("severity") == "HIGH")
-    medium_count = sum(1 for f in findings if f.get("severity") == "MEDIUM")
-    score -= high_count * 8
-    score -= medium_count * 3
-
-    if len(findings) == 0:
-        score += 10  # clean changeset bonus
-
-    # Align score range with decision
-    if decision == "BLOCKED":
-        score = min(score, 35)
-    elif decision == "APPROVED":
-        score = max(score, 65)
-
-    return max(0, min(100, round(score)))

@@ -17,9 +17,13 @@ _MAX_GUIDELINES        = 1000
 _MAX_ARCHITECTURE      = 1000
 _MAX_BUSINESS_CONTEXT  = 800
 _MAX_USER_STORY        = 1200
-_MAX_DIFF_PER_FILE     = 600
+_MAX_DIFF_PER_FILE     = 1000   # increased from 600 for better coverage analysis
+_MAX_FULL_FILE_CHARS   = 6000   # max chars for full file content (~240 lines)
 _MAX_DIFF_FILES        = 5
 _MAX_FINDINGS_CHARS    = 800
+
+# Line threshold below which we include full file content (Part 3)
+_FULL_FILE_LINE_THRESHOLD = 300
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -177,20 +181,36 @@ def _format_findings(findings: list) -> str:
 
 
 def _format_diffs(files_changed: list) -> str:
-    """Format diffs for the prompt; cap total files and diff size."""
+    """Format diffs for the prompt; cap total files and diff size.
+    
+    When a file dict contains 'full_file_content', that content is included
+    alongside the patch to give the AI full implementation context.
+    """
     parts = []
     for file in files_changed[:_MAX_DIFF_FILES]:
         filename = file.get("filename", "unknown")
         patch = file.get("patch") or ""
         additions = file.get("additions", 0)
         deletions = file.get("deletions", 0)
+        full_content = file.get("full_file_content") or ""
 
         header = f"### {filename} (+{additions} / -{deletions})"
+
+        file_parts = [header]
+
+        # Full file content — provides complete implementation context
+        if full_content:
+            content_text = _truncate(full_content, _MAX_FULL_FILE_CHARS)
+            file_parts.append(f"**Full file content:**\n```\n{content_text}\n```")
+
+        # Diff patch — shows what changed in this commit
         if patch:
             diff_text = _truncate(patch, _MAX_DIFF_PER_FILE)
-            parts.append(f"{header}\n```diff\n{diff_text}\n```")
+            file_parts.append(f"**Diff patch:**\n```diff\n{diff_text}\n```")
         else:
-            parts.append(f"{header}\n(binary or no patch available)")
+            file_parts.append("(binary or no patch available)")
+
+        parts.append("\n".join(file_parts))
 
     if len(files_changed) > _MAX_DIFF_FILES:
         omitted = len(files_changed) - _MAX_DIFF_FILES

@@ -8,11 +8,14 @@ and returns a structured record ready for storage and API response.
 
 from datetime import datetime, timezone
 
-from app.github_client import fetch_commit
+from app.github_client import fetch_commit, fetch_file_content
 from app.rule_engine import run_rules, calculate_risk_score
 from app.context_loader import load_repo_context
 from app.ai_review import run_ai_review
 from app.decision_engine import make_decision
+
+# Fetch full file content only for files under this change size (keeps AI payload lean)
+_FULL_CONTENT_CHANGE_THRESHOLD = 300
 
 
 def run_review(repository: str, branch: str, commit_sha: str, author: str,
@@ -32,17 +35,30 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str,
             commit_data.get("commit", {}).get("message", "") or ""
         )
 
-    # 2. Extract changed files
+    # 2. Extract changed files and optionally enrich with full file content
     files_changed = []
     for file in commit_data.get("files", []):
-        files_changed.append({
+        file_entry = {
             "filename": file.get("filename"),
             "status": file.get("status"),
             "additions": file.get("additions", 0),
             "deletions": file.get("deletions", 0),
             "changes": file.get("changes", 0),
             "patch": file.get("patch"),
-        })
+        }
+
+        # Fetch full content for small files to improve AI coverage reasoning
+        total_changes = file.get("changes", 0) or 0
+        if total_changes <= _FULL_CONTENT_CHANGE_THRESHOLD and file.get("status") != "removed":
+            full_content = fetch_file_content(
+                repository=repository,
+                file_path=file.get("filename", ""),
+                ref=commit_sha,
+            )
+            if full_content:
+                file_entry["full_file_content"] = full_content
+
+        files_changed.append(file_entry)
 
     # 3. Run deterministic rule engine
     findings = run_rules(files_changed)
@@ -70,6 +86,8 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str,
         ai_review=ai_result,
         risk_score_label=risk["risk_score"],
         user_story_detected=bool(context_metadata["detected_user_story"]),
+        context_loaded=context_metadata["repository_context_loaded"],
+        files_changed=files_changed,
     )
 
     print("\n========== GOVERNANCE DECISION ==========")
