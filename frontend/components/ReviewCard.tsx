@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, GitCommit, GitBranch, User, Clock, FileCode, BookOpen } from 'lucide-react';
+import { ChevronDown, ChevronUp, GitCommit, GitBranch, User, Clock, FileCode, BookOpen, ShieldCheck } from 'lucide-react';
 import { RiskBadge } from './RiskBadge';
 import { DecisionBadge } from './DecisionBadge';
 import { AIReviewSection, AIReviewResult } from './AIReviewSection';
@@ -47,6 +47,9 @@ export interface Review {
   commit_message?: string;
   // AI governance review
   ai_review?: AIReviewResult;
+  // Balanced decision engine outputs
+  decision_reason?: string[];
+  governance_confidence?: number;
 }
 
 interface ReviewCardProps {
@@ -88,6 +91,19 @@ export function ReviewCard({ review }: ReviewCardProps) {
               <RiskBadge level={review.risk_score} size="sm" />
               {review.review_decision && (
                 <DecisionBadge decision={review.review_decision} size="sm" />
+              )}
+              {review.governance_confidence !== undefined && (
+                <span
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                    review.governance_confidence >= 80
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                      : review.governance_confidence >= 50
+                      ? 'text-amber-600 bg-amber-50 border-amber-200'
+                      : 'text-red-600 bg-red-50 border-red-200'
+                  }`}
+                >
+                  {review.governance_confidence}% confidence
+                </span>
               )}
             </div>
 
@@ -146,6 +162,66 @@ export function ReviewCard({ review }: ReviewCardProps) {
       {/* Expanded details */}
       {expanded && (
         <div className="border-t border-slate-100 bg-slate-50/50 p-5 space-y-5">
+
+          {/* ── Governance Decision ── */}
+          {((review.decision_reason?.length ?? 0) > 0 || review.governance_confidence !== undefined) && (
+            <div>
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <ShieldCheck className="w-3 h-3" />
+                Governance Decision
+              </h4>
+              <div className="bg-white border border-slate-100 rounded-xl p-4 space-y-3">
+
+                {/* Confidence bar */}
+                {review.governance_confidence !== undefined && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-slate-500">Governance Confidence</span>
+                      <span
+                        className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                          review.governance_confidence >= 80
+                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                            : review.governance_confidence >= 50
+                            ? 'text-amber-600 bg-amber-50 border-amber-200'
+                            : 'text-red-600 bg-red-50 border-red-200'
+                        }`}
+                      >
+                        {review.governance_confidence}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          review.governance_confidence >= 80
+                            ? 'bg-emerald-500'
+                            : review.governance_confidence >= 50
+                            ? 'bg-amber-400'
+                            : 'bg-red-500'
+                        }`}
+                        style={{ width: `${Math.min(100, review.governance_confidence)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Decision reasoning */}
+                {(review.decision_reason?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 mb-1.5">Reasoning</p>
+                    <ul className="space-y-1">
+                      {review.decision_reason!.map((reason, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                          <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                          {reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          )}
 
           {/* ── Repository Context ── */}
           <div>

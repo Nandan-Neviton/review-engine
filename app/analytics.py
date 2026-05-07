@@ -298,3 +298,40 @@ def get_summary(reviews: List[dict]) -> dict:
         lines.append("High-risk governance trend observed — engineering review recommended.")
 
     return {"summary": " ".join(lines)}
+
+
+# ---------------------------------------------------------------------------
+# Decision analytics
+# ---------------------------------------------------------------------------
+
+def get_decision_analytics(reviews: List[dict]) -> dict:
+    """
+    Governance decision distribution and average confidence score.
+
+    Returns counts of APPROVED / NEEDS_REVIEW / BLOCKED decisions alongside
+    the average governance_confidence across all reviews that carry the field.
+    """
+    counts: dict = {"APPROVED": 0, "NEEDS_REVIEW": 0, "BLOCKED": 0}
+    confidence_values: list = []
+
+    for r in reviews:
+        decision = r.get("review_decision")
+        if decision in counts:
+            counts[decision] += 1
+
+        confidence = r.get("governance_confidence")
+        if isinstance(confidence, (int, float)):
+            confidence_values.append(confidence)
+
+    total = sum(counts.values())
+    avg_confidence = (
+        round(sum(confidence_values) / len(confidence_values))
+        if confidence_values
+        else None
+    )
+
+    return {
+        "decisions": counts,
+        "total_reviews": total,
+        "avg_governance_confidence": avg_confidence,
+    }

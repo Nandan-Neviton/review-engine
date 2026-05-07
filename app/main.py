@@ -154,6 +154,13 @@ async def analytics_summary():
     return analytics.get_summary(reviews)
 
 
+@app.get("/analytics/decisions")
+async def analytics_decisions():
+    """Governance decision distribution (APPROVED / NEEDS_REVIEW / BLOCKED) and avg confidence."""
+    reviews = get_all_reviews()
+    return analytics.get_decision_analytics(reviews)
+
+
 @app.get("/analytics/context-status")
 async def analytics_context_status():
     """Overview of which repositories have governance context files loaded."""

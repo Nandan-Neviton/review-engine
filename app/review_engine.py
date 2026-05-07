@@ -9,9 +9,10 @@ and returns a structured record ready for storage and API response.
 from datetime import datetime, timezone
 
 from app.github_client import fetch_commit
-from app.rule_engine import run_rules, calculate_risk_score, get_review_decision
+from app.rule_engine import run_rules, calculate_risk_score
 from app.context_loader import load_repo_context
 from app.ai_review import run_ai_review
+from app.decision_engine import make_decision
 
 
 def run_review(repository: str, branch: str, commit_sha: str, author: str,
@@ -46,18 +47,15 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str,
     # 3. Run deterministic rule engine
     findings = run_rules(files_changed)
 
-    # 4. Compute risk score
+    # 4. Compute risk score (governance sensitivity signal — preserved as-is)
     risk = calculate_risk_score(findings)
 
-    # 5. Derive review decision
-    decision = get_review_decision(risk["risk_score"])
-
-    # 6. Load repository context (non-blocking — missing context is fine)
+    # 5. Load repository context (non-blocking — missing context is fine)
     repo_context_result = load_repo_context(repository, commit_message)
     context_metadata = repo_context_result["metadata"]
     repo_context = repo_context_result["context"]
 
-    # 7. Run AI review (non-blocking — failure falls back gracefully)
+    # 6. Run AI review (non-blocking — failure falls back gracefully)
     ai_result = run_ai_review(
         context=repo_context,
         detected_user_story=context_metadata["detected_user_story"],
@@ -65,6 +63,21 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str,
         files_changed=files_changed,
         commit_message=commit_message,
     )
+
+    # 7. Derive balanced governance decision (AI-assisted, deterministic primary)
+    decision_result = make_decision(
+        findings=findings,
+        ai_review=ai_result,
+        risk_score_label=risk["risk_score"],
+        user_story_detected=bool(context_metadata["detected_user_story"]),
+    )
+
+    print("\n========== GOVERNANCE DECISION ==========")
+    print(f"Decision:   {decision_result['review_decision']}")
+    print(f"Confidence: {decision_result['governance_confidence']}%")
+    for reason in decision_result["decision_reason"]:
+        print(f"  - {reason}")
+    print("=========================================\n")
 
     # 8. Build final review record
     review = {
@@ -77,7 +90,9 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "risk_score": risk["risk_score"],
         "risk_score_value": risk["risk_score_value"],
-        "review_decision": decision,
+        "review_decision": decision_result["review_decision"],
+        "decision_reason": decision_result["decision_reason"],
+        "governance_confidence": decision_result["governance_confidence"],
         "total_files_changed": len(files_changed),
         "findings": findings,
         "files_changed": files_changed,
