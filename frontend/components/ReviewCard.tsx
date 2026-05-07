@@ -5,9 +5,10 @@
  */
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, GitCommit, GitBranch, User, Clock, FileCode, BookOpen, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp, GitCommit, GitBranch, User, Clock, FileCode, BookOpen } from 'lucide-react';
 import { RiskBadge } from './RiskBadge';
 import { DecisionBadge } from './DecisionBadge';
+import { AIReviewSection, AIReviewResult } from './AIReviewSection';
 
 export interface Finding {
   category: string;
@@ -44,6 +45,8 @@ export interface Review {
   detected_user_story?: string | null;
   available_user_stories?: string[];
   commit_message?: string;
+  // AI governance review
+  ai_review?: AIReviewResult;
 }
 
 interface ReviewCardProps {
@@ -196,14 +199,13 @@ export function ReviewCard({ review }: ReviewCardProps) {
                 </div>
               )}
 
-              {/* AI coverage placeholder */}
-              <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                <span className="text-xs text-slate-400 italic">Coverage Analysis: Pending AI Review</span>
-              </div>
-
             </div>
           </div>
+
+          {/* ── AI Governance Review ── */}
+          {review.ai_review && (
+            <AIReviewSection aiReview={review.ai_review} />
+          )}
           {/* Findings list */}
           {(review.findings?.length ?? 0) > 0 && (
             <div>
