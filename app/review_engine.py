@@ -2,13 +2,13 @@
 Review engine — orchestrates a full code review cycle.
 
 Fetches the commit from GitHub, extracts changed files, runs the rule engine,
-computes risk score, and returns a structured review record.
+computes risk score, derives review decision, and returns a structured record.
 """
 
 from datetime import datetime, timezone
 
 from app.github_client import fetch_commit
-from app.rule_engine import run_rules, calculate_risk_score
+from app.rule_engine import run_rules, calculate_risk_score, get_review_decision
 
 
 def run_review(repository: str, branch: str, commit_sha: str, author: str) -> dict:
@@ -39,7 +39,10 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str) -> di
     # 4. Compute risk score
     risk = calculate_risk_score(findings)
 
-    # 5. Build final review record
+    # 5. Derive review decision
+    decision = get_review_decision(risk["risk_score"])
+
+    # 6. Build final review record
     review = {
         "status": "success",
         "repository": repository,
@@ -49,6 +52,7 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str) -> di
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "risk_score": risk["risk_score"],
         "risk_score_value": risk["risk_score_value"],
+        "review_decision": decision,
         "total_files_changed": len(files_changed),
         "findings": findings,
         "files_changed": files_changed,

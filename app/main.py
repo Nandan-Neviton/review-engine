@@ -110,3 +110,42 @@ async def analytics_risks():
     """Distribution of LOW / MEDIUM / HIGH risk reviews."""
     reviews = get_all_reviews()
     return analytics.get_risk_analytics(reviews)
+
+
+# ---------------------------------------------------------------------------
+# New governance analytics endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/analytics/health")
+async def analytics_health():
+    """Engineering health score (0-100) with label."""
+    reviews = get_all_reviews()
+    return analytics.get_health_score(reviews)
+
+
+@app.get("/analytics/hotspots")
+async def analytics_hotspots():
+    """Most-modified files ranked by modification count and cumulative risk."""
+    reviews = get_all_reviews()
+    return analytics.get_hotspots(reviews)
+
+
+@app.get("/analytics/findings-summary")
+async def analytics_findings_summary():
+    """Findings count grouped by category across all reviews."""
+    reviews = get_all_reviews()
+    return analytics.get_findings_summary(reviews)
+
+
+@app.get("/analytics/timeline")
+async def analytics_timeline():
+    """Chronological activity timeline, newest first."""
+    reviews = get_all_reviews()
+    return analytics.get_timeline(reviews)
+
+
+@app.get("/analytics/summary")
+async def analytics_summary():
+    """Human-readable governance summary generated from review history."""
+    reviews = get_all_reviews()
+    return analytics.get_summary(reviews)

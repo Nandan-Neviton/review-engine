@@ -1,5 +1,5 @@
 """
-Governance checks — flag config file changes and large diffs.
+Governance checks — flag config file changes, large diffs, and large changesets.
 """
 
 from typing import List
@@ -7,8 +7,12 @@ from typing import List
 # Filename patterns that indicate configuration files
 CONFIG_PATTERNS = [".env", "config", "docker", ".yaml", ".yml"]
 
-# Threshold for flagging a file as a large diff
+# Per-file diff threshold
 LARGE_DIFF_THRESHOLD = 100
+
+# Whole-PR thresholds
+LARGE_CHANGESET_LINES = 300
+LARGE_CHANGESET_FILES = 15
 
 
 def check_config_changes(files: list) -> List[dict]:
@@ -27,7 +31,7 @@ def check_config_changes(files: list) -> List[dict]:
 
 
 def check_large_diffs(files: list) -> List[dict]:
-    """Flag files with more than LARGE_DIFF_THRESHOLD total line changes."""
+    """Flag individual files with more than LARGE_DIFF_THRESHOLD line changes."""
     findings = []
     for file in files:
         changes = file.get("changes") or 0
@@ -39,3 +43,23 @@ def check_large_diffs(files: list) -> List[dict]:
                 "file": file.get("filename", "unknown"),
             })
     return findings
+
+
+def check_large_changeset(files: list) -> List[dict]:
+    """Flag the overall PR when total lines or file count exceeds governance thresholds."""
+    total_changes = sum(f.get("changes") or 0 for f in files)
+    total_files = len(files)
+
+    if total_changes > LARGE_CHANGESET_LINES or total_files > LARGE_CHANGESET_FILES:
+        severity = "HIGH" if total_changes > LARGE_CHANGESET_LINES else "MEDIUM"
+        findings = [{
+            "category": "GOVERNANCE",
+            "severity": severity,
+            "message": (
+                f"Large change set detected "
+                f"({total_files} files, {total_changes} total lines) — mandatory senior review"
+            ),
+            "file": "(entire PR)",
+        }]
+        return findings
+    return []
