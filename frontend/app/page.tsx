@@ -26,7 +26,7 @@ export default function ReviewDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('https://review-engine.onrender.com/')
+    fetch('https://review-engine.onrender.com/latest-review')
       .then((res) => {
         if (!res.ok) throw new Error(`Server error: ${res.status}`);
         return res.json();
