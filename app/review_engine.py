@@ -2,16 +2,19 @@
 Review engine — orchestrates a full code review cycle.
 
 Fetches the commit from GitHub, extracts changed files, runs the rule engine,
-computes risk score, derives review decision, and returns a structured record.
+computes risk score, derives review decision, loads repository context,
+and returns a structured record ready for storage and API response.
 """
 
 from datetime import datetime, timezone
 
 from app.github_client import fetch_commit
 from app.rule_engine import run_rules, calculate_risk_score, get_review_decision
+from app.context_loader import load_repo_context
 
 
-def run_review(repository: str, branch: str, commit_sha: str, author: str) -> dict:
+def run_review(repository: str, branch: str, commit_sha: str, author: str,
+               commit_message: str = "") -> dict:
     """
     Perform a full deterministic review for a given commit.
 
@@ -20,6 +23,12 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str) -> di
     """
     # 1. Fetch commit data from GitHub
     commit_data = fetch_commit(repository, commit_sha)
+
+    # Use the commit message from GitHub if not provided by the caller
+    if not commit_message:
+        commit_message = (
+            commit_data.get("commit", {}).get("message", "") or ""
+        )
 
     # 2. Extract changed files
     files_changed = []
@@ -42,13 +51,18 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str) -> di
     # 5. Derive review decision
     decision = get_review_decision(risk["risk_score"])
 
-    # 6. Build final review record
+    # 6. Load repository context (non-blocking — missing context is fine)
+    repo_context_result = load_repo_context(repository, commit_message)
+    context_metadata = repo_context_result["metadata"]
+
+    # 7. Build final review record
     review = {
         "status": "success",
         "repository": repository,
         "branch": branch,
         "commit_sha": commit_sha,
         "author": author,
+        "commit_message": commit_message,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "risk_score": risk["risk_score"],
         "risk_score_value": risk["risk_score_value"],
@@ -56,6 +70,11 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str) -> di
         "total_files_changed": len(files_changed),
         "findings": findings,
         "files_changed": files_changed,
+        # Lightweight context metadata (no full markdown content exposed)
+        "repository_context_loaded": context_metadata["repository_context_loaded"],
+        "loaded_context_files": context_metadata["loaded_context_files"],
+        "detected_user_story": context_metadata["detected_user_story"],
+        "available_user_stories": context_metadata["available_user_stories"],
     }
 
     return review

@@ -20,6 +20,7 @@ import { HealthScoreCard } from '../components/HealthScoreCard';
 import { HotspotTable } from '../components/HotspotTable';
 import { TimelineFeed, TimelineEvent } from '../components/TimelineFeed';
 import { FindingsSummary } from '../components/FindingsSummary';
+import { ContextStatusCard, ContextStatus } from '../components/ContextStatusCard';
 
 const BASE_URL = 'https://review-engine.onrender.com';
 const REFRESH_INTERVAL_MS = 10_000;
@@ -53,7 +54,6 @@ interface HotspotEntry {
   modifications: number;
   risk_score: number;
 }
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -111,12 +111,13 @@ export default function GovernanceDashboard() {
   const [timeline, setTimeline]             = useState<TimelineEvent[]>([]);
   const [findingsSummary, setFindingsSummary] = useState<Record<string, number>>({});
   const [summaryText, setSummaryText]       = useState<string>('');
+  const [contextStatus, setContextStatus]   = useState<ContextStatus | null>(null);
   const [lastUpdated, setLastUpdated]       = useState<Date | null>(null);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
-    const [ov, rk, hl, devs, revs, hs, tl, fs, sm] = await Promise.all([
+    const [ov, rk, hl, devs, revs, hs, tl, fs, sm, cs] = await Promise.all([
       safeFetch<OverviewData>(`${BASE_URL}/analytics/overview`),
       safeFetch<RiskData>(`${BASE_URL}/analytics/risks`),
       safeFetch<HealthData>(`${BASE_URL}/analytics/health`),
@@ -126,6 +127,7 @@ export default function GovernanceDashboard() {
       safeFetch<TimelineEvent[]>(`${BASE_URL}/analytics/timeline`),
       safeFetch<Record<string, number>>(`${BASE_URL}/analytics/findings-summary`),
       safeFetch<{ summary: string }>(`${BASE_URL}/analytics/summary`),
+      safeFetch<ContextStatus>(`${BASE_URL}/analytics/context-status`),
     ]);
 
     if (!ov && !rk) {
@@ -143,6 +145,7 @@ export default function GovernanceDashboard() {
     if (tl)   setTimeline(Array.isArray(tl) ? tl : []);
     if (fs)   setFindingsSummary(fs && typeof fs === 'object' ? fs : {});
     if (sm)   setSummaryText(sm.summary ?? '');
+    if (cs)   setContextStatus(cs);
 
     setLastUpdated(new Date());
     setLoading(false);
@@ -359,6 +362,23 @@ export default function GovernanceDashboard() {
           <Card>
             {loading ? <Spinner /> : <DeveloperTable developers={developers} />}
           </Card>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Repository Context Status                                        */}
+        {/* ---------------------------------------------------------------- */}
+        <section>
+          <SectionHeader
+            title="Repository Context Status"
+            subtitle="Governance context availability across connected repositories"
+          />
+          {loading ? (
+            <Spinner />
+          ) : contextStatus ? (
+            <ContextStatusCard status={contextStatus} />
+          ) : (
+            <p className="text-slate-400 text-sm">Context status unavailable.</p>
+          )}
         </section>
 
         {/* ---------------------------------------------------------------- */}

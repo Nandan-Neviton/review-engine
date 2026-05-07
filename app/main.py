@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.review_engine import run_review
 from app.storage import save_review, get_all_reviews
 from app import analytics
+from app.context_loader import get_context_status
 
 app = FastAPI()
 
@@ -51,9 +52,11 @@ async def review(request: Request):
     branch = payload["branch"]
     commit_sha = payload["commit_sha"]
     author = payload["author"]
+    # Optional: GitHub Actions can pass the commit message for user-story detection
+    commit_message = payload.get("commit_message", "")
 
     try:
-        review_output = run_review(repository, branch, commit_sha, author)
+        review_output = run_review(repository, branch, commit_sha, author, commit_message)
     except RuntimeError as exc:
         return {"status": "failed", "error": str(exc)}
 
@@ -149,3 +152,10 @@ async def analytics_summary():
     """Human-readable governance summary generated from review history."""
     reviews = get_all_reviews()
     return analytics.get_summary(reviews)
+
+
+@app.get("/analytics/context-status")
+async def analytics_context_status():
+    """Overview of which repositories have governance context files loaded."""
+    reviews = get_all_reviews()
+    return get_context_status(reviews)
