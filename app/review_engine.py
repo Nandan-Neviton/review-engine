@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from app.github_client import fetch_commit
 from app.rule_engine import run_rules, calculate_risk_score, get_review_decision
 from app.context_loader import load_repo_context
+from app.ai_review import run_ai_review
 
 
 def run_review(repository: str, branch: str, commit_sha: str, author: str,
@@ -54,8 +55,18 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str,
     # 6. Load repository context (non-blocking — missing context is fine)
     repo_context_result = load_repo_context(repository, commit_message)
     context_metadata = repo_context_result["metadata"]
+    repo_context = repo_context_result["context"]
 
-    # 7. Build final review record
+    # 7. Run AI review (non-blocking — failure falls back gracefully)
+    ai_result = run_ai_review(
+        context=repo_context,
+        detected_user_story=context_metadata["detected_user_story"],
+        findings=findings,
+        files_changed=files_changed,
+        commit_message=commit_message,
+    )
+
+    # 8. Build final review record
     review = {
         "status": "success",
         "repository": repository,
@@ -75,6 +86,8 @@ def run_review(repository: str, branch: str, commit_sha: str, author: str,
         "loaded_context_files": context_metadata["loaded_context_files"],
         "detected_user_story": context_metadata["detected_user_story"],
         "available_user_stories": context_metadata["available_user_stories"],
+        # AI governance review (augments deterministic findings)
+        "ai_review": ai_result,
     }
 
     return review
