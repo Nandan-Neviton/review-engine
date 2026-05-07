@@ -19,7 +19,7 @@ _client = None
 
 MODEL = "gpt-5.1"
 TIMEOUT_SECONDS = 60
-MAX_TOKENS = 1500
+MAX_COMPLETION_TOKENS = 1500
 
 
 def _get_client():
@@ -62,7 +62,7 @@ def send_review_prompt(system_prompt: str, user_prompt: str) -> dict:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=MAX_TOKENS,
+            max_completion_tokens=MAX_COMPLETION_TOKENS,
             temperature=0.2,
             response_format={"type": "json_object"},
         )
