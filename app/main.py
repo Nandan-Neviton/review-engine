@@ -1,8 +1,11 @@
+import json
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-import requests
-import os
-import json
+
+from app.review_engine import run_review
+from app.storage import save_review, get_all_reviews
+from app import analytics
 
 app = FastAPI()
 
@@ -15,24 +18,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Store latest review in memory
-LATEST_REVIEW = {}
+# Latest review cached in memory for fast access by the frontend
+LATEST_REVIEW: dict = {}
 
+
+# ---------------------------------------------------------------------------
+# Core endpoints (preserved)
+# ---------------------------------------------------------------------------
 
 @app.get("/")
 async def home():
-    return {
-        "message": "AI Review Engine Running"
-    }
+    return {"message": "AI Review Engine Running"}
 
 
 @app.get("/latest-review")
 async def latest_review():
+    """Return the most recently processed review (in-memory cache)."""
     return LATEST_REVIEW
 
 
 @app.post("/review")
 async def review(request: Request):
+    """
+    Trigger a full deterministic code review for a GitHub commit.
+    Persists the result to reviews.json and updates the in-memory cache.
+    """
     global LATEST_REVIEW
 
     payload = await request.json()
@@ -42,57 +52,61 @@ async def review(request: Request):
     commit_sha = payload["commit_sha"]
     author = payload["author"]
 
-    token = os.getenv("GITHUB_TOKEN")
+    try:
+        review_output = run_review(repository, branch, commit_sha, author)
+    except RuntimeError as exc:
+        return {"status": "failed", "error": str(exc)}
 
-    github_api_url = f"https://api.github.com/repos/{repository}/commits/{commit_sha}"
+    # Persist to JSON storage
+    save_review(review_output)
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json"
-    }
-
-    response = requests.get(github_api_url, headers=headers)
-
-    if response.status_code != 200:
-        return {
-            "status": "failed",
-            "github_status_code": response.status_code,
-            "github_response": response.json()
-        }
-
-    commit_data = response.json()
-
-    files_changed = []
-
-    for file in commit_data.get("files", []):
-        files_changed.append({
-            "filename": file.get("filename"),
-            "status": file.get("status"),
-            "additions": file.get("additions"),
-            "deletions": file.get("deletions"),
-            "changes": file.get("changes"),
-            "patch": file.get("patch")
-        })
-
-    review_output = {
-        "status": "success",
-        "repository": repository,
-        "branch": branch,
-        "commit_sha": commit_sha,
-        "author": author,
-        "total_files_changed": len(files_changed),
-        "files_changed": files_changed
-    }
-
-    # Save latest review in memory
+    # Update in-memory latest review
     LATEST_REVIEW = review_output
 
     print("\n========== REVIEW OUTPUT ==========")
     print(json.dumps(review_output, indent=2))
     print("===================================\n")
 
-    # Save review locally
-    with open("review_output.json", "w") as review_file:
-        json.dump(review_output, review_file, indent=2)
-
     return review_output
+
+
+# ---------------------------------------------------------------------------
+# Review history endpoint
+# ---------------------------------------------------------------------------
+
+@app.get("/reviews")
+async def all_reviews():
+    """Return all persisted reviews, newest first."""
+    return get_all_reviews()
+
+
+# ---------------------------------------------------------------------------
+# Analytics endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/analytics/overview")
+async def analytics_overview():
+    """High-level governance summary across all reviews."""
+    reviews = get_all_reviews()
+    return analytics.get_overview(reviews)
+
+
+@app.get("/analytics/developers")
+async def analytics_developers():
+    """Per-developer push and risk metrics."""
+    reviews = get_all_reviews()
+    return analytics.get_developer_analytics(reviews)
+
+
+@app.get("/analytics/repositories")
+async def analytics_repositories():
+    """Per-repository push, risk, and finding aggregates."""
+    reviews = get_all_reviews()
+    return analytics.get_repository_analytics(reviews)
+
+
+@app.get("/analytics/risks")
+async def analytics_risks():
+    """Distribution of LOW / MEDIUM / HIGH risk reviews."""
+    reviews = get_all_reviews()
+    return analytics.get_risk_analytics(reviews)
